@@ -4,14 +4,18 @@ A web-based tool to filter Excel files based on service numbers and display the 
 
 ## Features
 
-- Upload Excel files (.xlsx, .xls)
-- Filter data where service_number is:
-  - 180992
-  - 180993
-  - Between 181011 and 181068 (inclusive)
-- Display filtered "tno" column values in a table
-- Download results as CSV
-- Modern, responsive UI with drag-and-drop support
+- Upload Excel files (.xlsx / .xls)
+- Supports multiple filter types:
+  - NJ600
+  - PHL
+  - BOS+PVD
+  - BDL(CT)
+- Filters data based on `service_number`
+- Displays only `tno` values on screen
+- Shows unique `tno` count
+- Allows downloading full filtered rows as an Excel file
+- Maximum file size: 100MB
+- Automatically deletes uploaded files after processing
 
 ## Requirements
 
