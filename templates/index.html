@@ -331,6 +331,27 @@
             opacity: 0.6;
             cursor: not-allowed;
         }
+
+        .combined-results-container {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .combined-results-container.active {
+            display: block;
+        }
+
+        .combined-result-block {
+            margin-bottom: 40px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .combined-result-block:last-child {
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body>
@@ -358,6 +379,7 @@
                 <button class="filter-btn" data-filter="PHL" id="filterPHL">PHL</button>
                 <button class="filter-btn" data-filter="BOS+PVD" id="filterBOSPVD">BOS+PVD</button>
                 <button class="filter-btn" data-filter="BDL(CT)" id="filterBDLCT">BDL(CT)</button>
+                <button class="filter-btn" data-filter="COMBINED" id="filterCOMBINED">Combined (NJ600+PHL+BOS)</button>
             </div>
 
             <div class="loading" id="loading">
@@ -390,6 +412,83 @@
                     <button class="download-btn" id="downloadBtn">💾 Download as Excel</button>
                 </div>
             </div>
+
+            <div class="combined-results-container" id="combinedResultsContainer">
+                <!-- NJ600 Block -->
+                <div class="combined-result-block" id="combinedBlockNJ600">
+                    <div class="results-header">
+                        <h2>Filtered Results (NJ600)</h2>
+                        <div class="results-info" id="combinedInfoNJ600"></div>
+                        <div class="results-count" id="combinedCountNJ600"></div>
+                        <div class="results-actual" id="combinedActualNJ600"></div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>NJ600</th>
+                                </tr>
+                            </thead>
+                            <tbody id="combinedBodyNJ600">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="button-group">
+                        <button class="copy-btn" data-filter="NJ600" data-combined="true">📋 Copy All</button>
+                        <button class="download-btn" data-filter="NJ600" data-combined="true">💾 Download as Excel</button>
+                    </div>
+                </div>
+
+                <!-- PHL Block -->
+                <div class="combined-result-block" id="combinedBlockPHL">
+                    <div class="results-header">
+                        <h2>Filtered Results (PHL)</h2>
+                        <div class="results-info" id="combinedInfoPHL"></div>
+                        <div class="results-count" id="combinedCountPHL"></div>
+                        <div class="results-actual" id="combinedActualPHL"></div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>PHL</th>
+                                </tr>
+                            </thead>
+                            <tbody id="combinedBodyPHL">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="button-group">
+                        <button class="copy-btn" data-filter="PHL" data-combined="true">📋 Copy All</button>
+                        <button class="download-btn" data-filter="PHL" data-combined="true">💾 Download as Excel</button>
+                    </div>
+                </div>
+
+                <!-- BOS+PVD Block -->
+                <div class="combined-result-block" id="combinedBlockBOS">
+                    <div class="results-header">
+                        <h2>Filtered Results (BOS+PVD)</h2>
+                        <div class="results-info" id="combinedInfoBOS"></div>
+                        <div class="results-count" id="combinedCountBOS"></div>
+                        <div class="results-actual" id="combinedActualBOS"></div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>BOS+PVD</th>
+                                </tr>
+                            </thead>
+                            <tbody id="combinedBodyBOS">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="button-group">
+                        <button class="copy-btn" data-filter="BOS+PVD" data-combined="true">📋 Copy All</button>
+                        <button class="download-btn" data-filter="BOS+PVD" data-combined="true">💾 Download as Excel</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -411,6 +510,8 @@
         let filteredData = [];  // Only tno data for display and copy
         let fullFilteredData = [];  // All columns for download
         let currentFilterType = 'NJ600';  // Default filter type
+        let combinedResultsData = {};  // Store combined results data
+        const combinedResultsContainer = document.getElementById('combinedResultsContainer');
 
         // Filter button click handlers - process file when clicked
         filterButtons.forEach(btn => {
@@ -439,6 +540,7 @@
             // Show loading, hide results and errors
             loading.classList.add('active');
             resultsSection.classList.remove('active');
+            combinedResultsContainer.classList.remove('active');
             errorMessage.classList.remove('active');
             processBtn.disabled = true;
             filterButtons.forEach(btn => btn.disabled = true);
@@ -468,10 +570,17 @@
                 filterButtons.forEach(btn => btn.disabled = false);
 
                 if (result.success) {
-                    filteredData = result.data;  // Only tno for display
-                    fullFilteredData = result.full_data || result.data;  // All columns for download
                     currentFilterType = result.filter_type || filterType;  // Update filter type
-                    displayResults(result);
+                    
+                    // Check if this is a combined result
+                    if (result.filter_type === 'COMBINED' && result.combined_results) {
+                        combinedResultsData = result.combined_results;
+                        displayCombinedResults(result.combined_results);
+                    } else {
+                        filteredData = result.data;  // Only tno for display
+                        fullFilteredData = result.full_data || result.data;  // All columns for download
+                        displayResults(result);
+                    }
                 } else {
                     showError(result.error || 'An error occurred while processing the file');
                 }
@@ -548,6 +657,60 @@
             });
 
             resultsSection.classList.add('active');
+        }
+
+        function displayCombinedResults(combinedResults) {
+            // Hide regular results section
+            resultsSection.classList.remove('active');
+            
+            // Display each filter's results in its own block
+            const filterMapping = {
+                'NJ600': {
+                    body: 'combinedBodyNJ600',
+                    info: 'combinedInfoNJ600',
+                    count: 'combinedCountNJ600',
+                    actual: 'combinedActualNJ600'
+                },
+                'PHL': {
+                    body: 'combinedBodyPHL',
+                    info: 'combinedInfoPHL',
+                    count: 'combinedCountPHL',
+                    actual: 'combinedActualPHL'
+                },
+                'BOS+PVD': {
+                    body: 'combinedBodyBOS',
+                    info: 'combinedInfoBOS',
+                    count: 'combinedCountBOS',
+                    actual: 'combinedActualBOS'
+                }
+            };
+
+            Object.keys(filterMapping).forEach(filterType => {
+                const result = combinedResults[filterType];
+                const mapping = filterMapping[filterType];
+                
+                if (result) {
+                    // Update info
+                    document.getElementById(mapping.info).textContent = `Total rows: ${result.total_rows}`;
+                    document.getElementById(mapping.count).textContent = `Count: ${result.total_rows} items`;
+                    document.getElementById(mapping.actual).textContent = `Actual Quantity: ${result.unique_tno_count || result.total_rows} unique items`;
+                    
+                    // Update table body
+                    const tbody = document.getElementById(mapping.body);
+                    tbody.innerHTML = '';
+                    
+                    result.data.forEach(row => {
+                        const tr = document.createElement('tr');
+                        const td = document.createElement('td');
+                        td.textContent = row[filterType] || Object.values(row)[0];
+                        tr.appendChild(td);
+                        tbody.appendChild(tr);
+                    });
+                }
+            });
+            
+            // Show combined results container
+            combinedResultsContainer.classList.add('active');
         }
 
         function showError(message) {
@@ -649,6 +812,112 @@
             } catch (error) {
                 showError('Download error: ' + error.message);
             }
+        });
+
+        // Combined results copy buttons
+        document.querySelectorAll('.copy-btn[data-combined="true"]').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                const filterType = this.getAttribute('data-filter');
+                const result = combinedResultsData[filterType];
+                
+                if (!result || !result.data || result.data.length === 0) return;
+
+                try {
+                    // Extract all values
+                    const allValues = result.data.map(row => row[filterType] || Object.values(row)[0]).join('\n');
+                    
+                    // Copy to clipboard
+                    await navigator.clipboard.writeText(allValues);
+                    
+                    // Visual feedback
+                    const originalText = this.textContent;
+                    this.textContent = '✓ Copied!';
+                    this.classList.add('copied');
+                    
+                    setTimeout(() => {
+                        this.textContent = originalText;
+                        this.classList.remove('copied');
+                    }, 2000);
+                } catch (error) {
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = result.data.map(row => row[filterType] || Object.values(row)[0]).join('\n');
+                    textArea.style.position = 'fixed';
+                    textArea.style.opacity = '0';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        const originalText = this.textContent;
+                        this.textContent = '✓ Copied!';
+                        this.classList.add('copied');
+                        setTimeout(() => {
+                            this.textContent = originalText;
+                            this.classList.remove('copied');
+                        }, 2000);
+                    } catch (err) {
+                        showError('Failed to copy: ' + err.message);
+                    }
+                    document.body.removeChild(textArea);
+                }
+            });
+        });
+
+        // Combined results download buttons
+        document.querySelectorAll('.download-btn[data-combined="true"]').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                const filterType = this.getAttribute('data-filter');
+                const result = combinedResultsData[filterType];
+                
+                if (!result || !result.full_data || result.full_data.length === 0) return;
+
+                try {
+                    const response = await fetch('/download', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            full_data: result.full_data,
+                            filter_type: filterType
+                        })
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        // Get filename from Content-Disposition header or use default
+                        const contentDisposition = response.headers.get('Content-Disposition');
+                        if (contentDisposition) {
+                            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                            if (filenameMatch && filenameMatch[1]) {
+                                link.download = filenameMatch[1].replace(/['"]/g, '');
+                            } else {
+                                // Get date for filename
+                                const today = new Date();
+                                const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${String(today.getFullYear()).slice(-2)}`;
+                                link.download = `${filterType} ${dateStr}.xlsx`;
+                            }
+                        } else {
+                            // Get date for filename
+                            const today = new Date();
+                            const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${String(today.getFullYear()).slice(-2)}`;
+                            link.download = `${filterType} ${dateStr}.xlsx`;
+                        }
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(url);
+                    } else {
+                        const error = await response.json();
+                        showError('Download failed: ' + (error.error || 'Unknown error'));
+                    }
+                } catch (error) {
+                    showError('Download error: ' + error.message);
+                }
+            });
         });
     </script>
 </body>

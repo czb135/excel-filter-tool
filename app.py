@@ -48,6 +48,27 @@ def get_filter_mask(df, filter_type):
     elif filter_type == 'BDL(CT)':
         # BDL(CT): filter 181070-181099
         mask = ((df['service_number'] >= 181070) & (df['service_number'] <= 181099))
+    elif filter_type == 'COMBINED':
+        # COMBINED: Combine NJ600, PHL, and BOS+PVD filters
+        nj600_mask = (
+            (df['service_number'] == 180992) |
+            (df['service_number'] == 180993) |
+            ((df['service_number'] >= 181011) & (df['service_number'] <= 181068))
+        )
+        phl_mask = (
+            ((df['service_number'] >= 250001) & (df['service_number'] <= 250029)) |
+            ((df['service_number'] >= 250032) & (df['service_number'] <= 250049)) |
+            ((df['service_number'] >= 250990) & (df['service_number'] <= 250999))
+        )
+        bos_pvd_numbers = [
+            390001, 390002, 390003, 390005, 390006, 390008, 390009, 390010,
+            390012, 390013, 390014, 390015, 390016, 390018, 390019, 390022,
+            390025, 390026, 390029, 390030, 390036, 390038, 390991, 390994,
+            390995,
+        ]
+        bos_mask = df['service_number'].isin(bos_pvd_numbers)
+        # Combine all three filters with OR logic
+        mask = nj600_mask | phl_mask | bos_mask
     else:
         raise ValueError(f"Unknown filter type: {filter_type}")
     
@@ -59,6 +80,73 @@ def filter_excel_data(file_path, filter_type='NJ600'):
         # Read the Excel file
         df = pd.read_excel(file_path)
         
+        # Handle COMBINED filter separately - return separate results for each filter
+        if filter_type == 'COMBINED':
+            # Clean any NaN/NaT values that aren't JSON serializable
+            def clean_dict(d):
+                """Recursively clean NaN, NaT, and other non-JSON-serializable values"""
+                if isinstance(d, dict):
+                    return {k: clean_dict(v) for k, v in d.items()}
+                elif isinstance(d, list):
+                    return [clean_dict(item) for item in d]
+                elif d is None:
+                    return None
+                elif isinstance(d, float):
+                    # Check for NaN
+                    if np.isnan(d):
+                        return None
+                    return d
+                else:
+                    # Try to check if it's a pandas NA value
+                    try:
+                        if pd.isna(d):
+                            return None
+                    except (TypeError, ValueError):
+                        pass
+                    # Handle datetime objects
+                    if hasattr(d, 'isoformat'):
+                        return d.isoformat()
+                    return d
+            
+            # Process each filter separately
+            combined_results = {}
+            for sub_filter in ['NJ600', 'PHL', 'BOS+PVD']:
+                mask = get_filter_mask(df, sub_filter)
+                filtered_df = df[mask].copy()
+                
+                # Extract column B "tno" from filtered data for display
+                tno_column = filtered_df['tno']
+                
+                # Create output DataFrame with filter name for display
+                display_df = pd.DataFrame({
+                    sub_filter: tno_column.values
+                })
+                
+                # Convert to dict and clean
+                data_dict = display_df.to_dict('records')
+                full_data_dict = filtered_df.to_dict('records')
+                
+                # Clean the dictionaries
+                data_dict = clean_dict(data_dict)
+                full_data_dict = clean_dict(full_data_dict)
+                
+                # Calculate unique tno count
+                unique_tno_count = filtered_df['tno'].nunique()
+                
+                combined_results[sub_filter] = {
+                    'total_rows': len(filtered_df),
+                    'unique_tno_count': int(unique_tno_count),
+                    'data': data_dict,
+                    'full_data': full_data_dict
+                }
+            
+            return {
+                'success': True,
+                'filter_type': 'COMBINED',
+                'combined_results': combined_results
+            }
+        
+        # Regular filter processing
         # Get filter mask based on filter type
         mask = get_filter_mask(df, filter_type)
         filtered_df = df[mask].copy()
